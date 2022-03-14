@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -10,7 +11,8 @@ import (
 
 	"github.com/codegangsta/negroni"
 	"github.com/gorilla/mux"
-	"github.com/sevilha/coffee/pkg/web/router"
+	"github.com/sevilha/coffee/pkg/model/coffee"
+	handlers "github.com/sevilha/coffee/pkg/web/handlers"
 )
 
 type controller struct {
@@ -23,6 +25,12 @@ type middleware func(http.Handler) http.Handler
 type middlewares []middleware
 
 func main() {
+	db, err := sql.Open("sqlite3", "db/coffee-go.db")
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	r := mux.NewRouter()
 
 	n := negroni.New(
@@ -34,22 +42,24 @@ func main() {
 
 	c := &controller{logger: logger, nextRequestID: func() string { return strconv.FormatInt(time.Now().UnixNano(), 36) }}
 
-	router.MakeCoffeeHandler(r, n)
+	service := coffee.NewService(db)
+	handlers.MakeCoffeeHandler(r, n, service)
 	http.Handle("/", r)
 
-	srv := &http.Server{
+	addr := ":4000"
+	server := &http.Server{
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
-		Addr:         ":4000",
+		Addr:         addr,
 		Handler:      (middlewares{c.tracing, c.logging}).apply(r),
 		ErrorLog:     logger,
 	}
 
-	logger.Printf("Server is ready to handle requests at %q\n", ":4000")
+	logger.Printf("Server is ready to handle requests at %q\n", addr)
 	atomic.StoreInt64(&c.healthy, time.Now().UnixNano())
 
-	err := srv.ListenAndServe()
-	if err != nil {
+	errServer := server.ListenAndServe()
+	if errServer != nil {
 		log.Fatal(err)
 	}
 
