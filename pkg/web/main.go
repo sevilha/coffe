@@ -58,8 +58,8 @@ func main() {
 	logger.Printf("Server is ready to handle requests at %q\n", addr)
 	atomic.StoreInt64(&c.healthy, time.Now().UnixNano())
 
-	errServer := server.ListenAndServe()
-	if errServer != nil {
+	err = server.ListenAndServe()
+	if err != nil {
 		log.Fatal(err)
 	}
 
